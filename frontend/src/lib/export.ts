@@ -173,7 +173,7 @@ ${cards}
 </div>
 
 <footer>
-  Built with <a href="https://github.com/tanayparikh/constitutional-ai-sandbox">Constitutional AI Sandbox</a>
+  Built with <a href="https://github.com/tanay126/constitutional-ai-sandbox">Constitutional AI Sandbox</a>
   &mdash; Bai et al. 2022, <a href="https://arxiv.org/abs/2212.08073">arxiv.org/abs/2212.08073</a>
 </footer>
 </body>
