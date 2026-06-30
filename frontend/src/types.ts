@@ -30,3 +30,17 @@ export interface RunStats {
   iterationsCompleted: number
   wordsChanged: number
 }
+
+export interface HistoryEntry {
+  id: string
+  timestamp: number
+  prompt: string
+  mode: Mode
+  iterations: number
+  constitution: string[]
+  helpfulnessWeight: number
+  harmlessnessWeight: number
+  events: SSEEvent[]
+  stats: RunStats
+  conflicts: Conflict[]
+}

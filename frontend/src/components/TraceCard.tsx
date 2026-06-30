@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { Copy, Check } from 'lucide-react'
 import type { SSEEvent } from '../types'
 import { DiffView } from './DiffView'
 import { cn } from '../lib/cn'
@@ -5,6 +7,7 @@ import { cn } from '../lib/cn'
 interface Props {
   event: SSEEvent
   previousContent?: string
+  isActive?: boolean
 }
 
 const stepConfig = {
@@ -41,18 +44,34 @@ const stepConfig = {
   done: null,
 }
 
-export function TraceCard({ event, previousContent }: Props) {
+export function TraceCard({ event, previousContent, isActive = false }: Props) {
+  const [copied, setCopied] = useState(false)
   const config = stepConfig[event.step]
   if (!config) return null
 
-  const label = event.step === 'critique'
-    ? `CRITIQUE · Principle ${(event.principle_index ?? 0) + 1}`
-    : event.step === 'revision'
-    ? `REVISION · Iter ${event.iteration ?? 1}`
-    : config.label
+  const label =
+    event.step === 'critique'
+      ? `CRITIQUE · Principle ${(event.principle_index ?? 0) + 1}`
+      : event.step === 'revision'
+      ? `REVISION · Iter ${event.iteration ?? 1}`
+      : config.label
+
+  function copy() {
+    navigator.clipboard.writeText(event.content).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
 
   return (
-    <div className={cn('card-appear border rounded-sm p-4 space-y-3', config.border, config.bg)}>
+    <div
+      className={cn(
+        'border rounded-sm p-4 space-y-3 relative group',
+        config.border,
+        config.bg,
+        isActive ? 'card-active' : 'card-appear',
+      )}
+    >
       {/* Header row */}
       <div className="flex items-center gap-3 flex-wrap">
         <span className={cn('text-[10px] font-bold tracking-[0.15em] uppercase', config.labelColor)}>
@@ -66,6 +85,21 @@ export function TraceCard({ event, previousContent }: Props) {
         {event.iteration !== null && event.step !== 'done' && event.step !== 'draft' && (
           <span className="text-[10px] text-neutral-600 ml-auto">iter {event.iteration}</span>
         )}
+
+        {/* Copy button — visible on hover */}
+        <button
+          onClick={copy}
+          className={cn(
+            'ml-auto flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-sm transition-all',
+            'border border-white/5 text-neutral-600 hover:text-neutral-300 hover:border-white/15',
+            'opacity-0 group-hover:opacity-100',
+            event.iteration !== null && event.step !== 'done' && event.step !== 'draft' ? '' : 'ml-auto',
+          )}
+          title="Copy content"
+        >
+          {copied ? <Check size={10} /> : <Copy size={10} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
       </div>
 
       {/* Content */}

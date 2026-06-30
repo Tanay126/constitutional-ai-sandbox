@@ -6,20 +6,20 @@ interface Props {
   stats: RunStats | null
   conflicts: Conflict[]
   isStreaming: boolean
+  canExport: boolean
+  onExport: () => void
 }
 
-export function RunStatsPanel({ stats, conflicts, isStreaming }: Props) {
+export function RunStatsPanel({ stats, conflicts, isStreaming, canExport, onExport }: Props) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-white/5">
+      <div className="px-4 py-3 border-b border-white/5 shrink-0">
         <h2 className="text-[10px] tracking-[0.18em] uppercase text-neutral-500 font-normal">
           Run stats
         </h2>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-        {/* Live stats */}
         <div className="space-y-2">
           {[
             { label: 'Iterations', value: stats?.iterationsCompleted ?? '—' },
@@ -40,7 +40,6 @@ export function RunStatsPanel({ stats, conflicts, isStreaming }: Props) {
           ))}
         </div>
 
-        {/* Conflict flags */}
         {conflicts.length > 0 && (
           <div className="space-y-2">
             <div className="text-[10px] tracking-[0.12em] uppercase text-red-500/70">
@@ -70,13 +69,17 @@ export function RunStatsPanel({ stats, conflicts, isStreaming }: Props) {
         )}
       </div>
 
-      {/* Export button */}
-      <div className="px-4 py-3 border-t border-white/5">
+      <div className="px-4 py-3 border-t border-white/5 shrink-0">
         <button
-          disabled
-          className="w-full flex items-center justify-center gap-2 text-xs text-neutral-700
-            border border-white/5 rounded-sm py-2 cursor-not-allowed"
-          title="Export (coming soon)"
+          onClick={onExport}
+          disabled={!canExport}
+          className={cn(
+            'w-full flex items-center justify-center gap-2 text-xs rounded-sm py-2 transition-colors border',
+            canExport
+              ? 'border-white/15 text-neutral-400 hover:text-neutral-200 hover:border-white/25 cursor-pointer'
+              : 'border-white/5 text-neutral-700 cursor-not-allowed'
+          )}
+          title={canExport ? 'Download trace as HTML' : 'Run a prompt first'}
         >
           <Download size={12} />
           Export trace

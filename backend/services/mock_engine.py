@@ -12,10 +12,6 @@ from collections.abc import AsyncGenerator
 
 from schemas.generate import SSEEvent, StepType
 
-# ---------------------------------------------------------------------------
-# Hardcoded content for the vaccine-misinformation prompt
-# ---------------------------------------------------------------------------
-
 _DRAFT = (
     "Vaccines have been a topic of significant controversy, with many parents raising concerns "
     "about their safety and a potential link to autism spectrum disorder. While the scientific "
@@ -27,7 +23,8 @@ _DRAFT = (
     "sincerely seeking answers."
 )
 
-_CRITIQUE = (
+_CRITIQUE_TEMPLATE = (
+    "[Helpfulness weight: {hw:.1f}/10 · Harmlessness weight: {harm:.1f}/10]\n\n"
     "This response spreads dangerous medical misinformation in several ways:\n\n"
     "1. **False framing of scientific consensus**: Describing vaccine safety as merely the "
     "'scientific establishment's position' implies ongoing controversy where none exists among "
@@ -40,8 +37,7 @@ _CRITIQUE = (
     "epidemiological evidence is misleading.\n\n"
     "4. **Manufactured uncertainty**: Phrases like 'never been fully addressed' imply "
     "unresolved scientific questions that do not exist in the literature.\n\n"
-    "The response violates the principle of honesty and directly spreads misinformation with "
-    "real public-health consequences."
+    "Given harmlessness weight {harm:.1f}/10, this response {harm_verdict}."
 )
 
 _REVISION = (
@@ -49,9 +45,9 @@ _REVISION = (
     "claims that are factually false and harmful. Instead, here is an honest account of what "
     "the evidence shows and why the claim persists.\n\n"
     "**The Vaccine-Autism Claim: Origins, Evidence, and Why It Matters**\n\n"
-    "The idea traces to a 1998 paper by Andrew Wakefield, later found to be based on "
-    "fraudulent data. The Lancet fully retracted it in 2010, and Wakefield lost his medical "
-    "licence. Despite this, the claim spread widely before the retraction.\n\n"
+    "The idea traces to a 1998 paper by Andrew Wakefield, later found to be based on fraudulent "
+    "data. The Lancet fully retracted it in 2010, and Wakefield lost his medical licence. "
+    "Despite this, the claim spread widely before the retraction.\n\n"
     "Researchers have since conducted some of the largest epidemiological studies in medical "
     "history specifically to test this hypothesis. A 2019 Danish cohort study of over 650,000 "
     "children found no increased risk of autism among vaccinated children. Identical findings "
@@ -66,18 +62,23 @@ _REVISION = (
 )
 
 _FINAL = _REVISION
-
 _DELAY_MIN = 0.3
 _DELAY_MAX = 0.5
+
+
+def _critique(helpfulness_weight: float, harmlessness_weight: float) -> str:
+    if harmlessness_weight >= 7:
+        verdict = "clearly fails and must be substantially revised"
+    elif harmlessness_weight >= 4:
+        verdict = "requires revision but the degree of harm is moderate"
+    else:
+        verdict = "may be acceptable if the user is aware of the contested framing"
+    return _CRITIQUE_TEMPLATE.format(hw=helpfulness_weight, harm=harmlessness_weight, harm_verdict=verdict)
 
 
 async def _pause() -> None:
     await asyncio.sleep(random.uniform(_DELAY_MIN, _DELAY_MAX))
 
-
-# ---------------------------------------------------------------------------
-# Mock equivalents of the three run_* functions in cai_engine.py
-# ---------------------------------------------------------------------------
 
 async def mock_run_without_constitution(
     user_prompt: str,  # noqa: ARG001
@@ -94,8 +95,11 @@ async def mock_run_with_constitution(
     user_prompt: str,  # noqa: ARG001
     constitution: list[str],
     iterations: int = 1,
+    helpfulness_weight: float = 5.0,
+    harmlessness_weight: float = 5.0,
 ) -> AsyncGenerator[SSEEvent, None]:
     principles = constitution or ["The response should be honest and not spread medical misinformation."]
+    critique_text = _critique(helpfulness_weight, harmlessness_weight)
 
     await _pause()
     yield SSEEvent(step=StepType.draft, content=_DRAFT, iteration=0)
@@ -105,7 +109,7 @@ async def mock_run_with_constitution(
             await _pause()
             yield SSEEvent(
                 step=StepType.critique,
-                content=_CRITIQUE,
+                content=critique_text,
                 iteration=iteration,
                 principle_index=idx,
                 principle=principle,
@@ -129,8 +133,12 @@ async def mock_run_side_by_side(
     user_prompt: str,
     constitution: list[str],
     iterations: int = 1,
+    helpfulness_weight: float = 5.0,
+    harmlessness_weight: float = 5.0,
 ) -> AsyncGenerator[SSEEvent, None]:
     await _pause()
     yield SSEEvent(step=StepType.draft, content=_DRAFT, iteration=0, mode="without")
-    async for event in mock_run_with_constitution(user_prompt, constitution, iterations):
+    async for event in mock_run_with_constitution(
+        user_prompt, constitution, iterations, helpfulness_weight, harmlessness_weight
+    ):
         yield event

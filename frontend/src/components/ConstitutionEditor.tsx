@@ -1,15 +1,23 @@
-import { Plus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import type { ConstitutionPreset, Mode } from '../types'
+import { buildCritiqueSystemPrompt } from '../lib/systemPrompt'
 import { cn } from '../lib/cn'
 
 interface Props {
   principles: string[]
   onChange: (principles: string[]) => void
   presets: ConstitutionPreset[]
+  selectedPresetId: string | null
+  onPresetSelect: (id: string | null) => void
   mode: Mode
   onModeChange: (mode: Mode) => void
   iterations: number
   onIterationsChange: (n: number) => void
+  helpfulnessWeight: number
+  harmlessnessWeight: number
+  onHelpfulnessChange: (v: number) => void
+  onHarmlessnessChange: (v: number) => void
   disabled: boolean
 }
 
@@ -23,12 +31,20 @@ export function ConstitutionEditor({
   principles,
   onChange,
   presets,
+  selectedPresetId,
+  onPresetSelect,
   mode,
   onModeChange,
   iterations,
   onIterationsChange,
+  helpfulnessWeight,
+  harmlessnessWeight,
+  onHelpfulnessChange,
+  onHarmlessnessChange,
   disabled,
 }: Props) {
+  const [showPromptPreview, setShowPromptPreview] = useState(false)
+
   function update(i: number, value: string) {
     const next = [...principles]
     next[i] = value
@@ -45,13 +61,19 @@ export function ConstitutionEditor({
 
   function applyPreset(id: string) {
     const preset = presets.find(p => p.id === id)
-    if (preset) onChange(preset.principles)
+    if (preset) {
+      onChange(preset.principles)
+      onPresetSelect(id)
+    }
   }
+
+  const systemPromptPreview = buildCritiqueSystemPrompt(helpfulnessWeight, harmlessnessWeight)
+  const selectedPreset = presets.find(p => p.id === selectedPresetId)
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/5">
+      <div className="px-4 py-3 border-b border-white/5 shrink-0">
         <h2 className="text-[10px] tracking-[0.18em] uppercase text-neutral-500 font-normal">
           Constitution
         </h2>
@@ -90,10 +112,7 @@ export function ConstitutionEditor({
             <span className="text-xs text-teal-400 tabular-nums">{iterations}</span>
           </div>
           <input
-            type="range"
-            min={1}
-            max={5}
-            value={iterations}
+            type="range" min={1} max={5} value={iterations}
             onChange={e => onIterationsChange(Number(e.target.value))}
             disabled={disabled}
             className="w-full h-1 appearance-none bg-white/10 rounded-full accent-teal-500 disabled:opacity-40"
@@ -101,6 +120,67 @@ export function ConstitutionEditor({
           <div className="flex justify-between text-[9px] text-neutral-700">
             <span>1</span><span>5</span>
           </div>
+        </div>
+
+        {/* Severity sliders */}
+        <div className="space-y-3 pt-1 border-t border-white/5">
+          <label className="text-[10px] tracking-[0.12em] uppercase text-neutral-600 block pt-2">
+            Evaluation weights
+          </label>
+
+          {/* Helpfulness */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="text-[11px] text-neutral-500">Helpfulness</span>
+              <span className={cn(
+                'text-xs tabular-nums',
+                helpfulnessWeight >= 7 ? 'text-teal-400' : helpfulnessWeight >= 4 ? 'text-neutral-400' : 'text-neutral-600'
+              )}>{helpfulnessWeight.toFixed(1)}</span>
+            </div>
+            <input
+              type="range" min={0} max={10} step={0.5} value={helpfulnessWeight}
+              onChange={e => onHelpfulnessChange(Number(e.target.value))}
+              disabled={disabled}
+              className="w-full h-1 appearance-none bg-white/10 rounded-full accent-teal-500 disabled:opacity-40"
+            />
+            <div className="flex justify-between text-[9px] text-neutral-700">
+              <span>cautious</span><span>helpful</span>
+            </div>
+          </div>
+
+          {/* Harmlessness */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="text-[11px] text-neutral-500">Harmlessness</span>
+              <span className={cn(
+                'text-xs tabular-nums',
+                harmlessnessWeight >= 7 ? 'text-amber-400' : harmlessnessWeight >= 4 ? 'text-neutral-400' : 'text-neutral-600'
+              )}>{harmlessnessWeight.toFixed(1)}</span>
+            </div>
+            <input
+              type="range" min={0} max={10} step={0.5} value={harmlessnessWeight}
+              onChange={e => onHarmlessnessChange(Number(e.target.value))}
+              disabled={disabled}
+              className="w-full h-1 appearance-none bg-white/10 rounded-full accent-amber-500 disabled:opacity-40"
+            />
+            <div className="flex justify-between text-[9px] text-neutral-700">
+              <span>permissive</span><span>strict</span>
+            </div>
+          </div>
+
+          {/* Collapsible system prompt preview */}
+          <button
+            onClick={() => setShowPromptPreview(v => !v)}
+            className="flex items-center gap-1.5 text-[10px] text-neutral-600 hover:text-neutral-400 transition-colors w-full text-left"
+          >
+            {showPromptPreview ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+            System prompt preview
+          </button>
+          {showPromptPreview && (
+            <pre className="text-[10px] text-neutral-500 bg-white/[0.03] border border-white/5 rounded-sm p-2.5 whitespace-pre-wrap break-words leading-relaxed max-h-48 overflow-y-auto">
+              {systemPromptPreview}
+            </pre>
+          )}
         </div>
 
         {/* Preset selector */}
@@ -112,7 +192,7 @@ export function ConstitutionEditor({
             <select
               onChange={e => applyPreset(e.target.value)}
               disabled={disabled}
-              defaultValue=""
+              value={selectedPresetId ?? ''}
               className={cn(
                 'w-full text-xs bg-white/5 border border-white/10 rounded-sm px-2 py-1.5',
                 'text-neutral-400 focus:outline-none focus:border-teal-500/50',
@@ -124,6 +204,20 @@ export function ConstitutionEditor({
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+            {selectedPreset?.id === 'anthropic-style' && (
+              <p className="text-[10px] text-neutral-600 leading-relaxed">
+                Source:{' '}
+                <a
+                  href="https://arxiv.org/abs/2212.08073"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-teal-600 hover:text-teal-400 underline underline-offset-2 transition-colors"
+                >
+                  Bai et al. 2022
+                </a>
+                {' '}— Appendix C.1 (SL-CAI verbatim)
+              </p>
+            )}
           </div>
         )}
 

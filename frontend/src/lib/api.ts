@@ -24,11 +24,20 @@ export async function* streamGenerate(
   constitution: string[],
   mode: Mode,
   iterations: number,
+  helpfulnessWeight: number,
+  harmlessnessWeight: number,
 ): AsyncGenerator<SSEEvent> {
   const res = await fetch(`${BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, constitution, mode, iterations }),
+    body: JSON.stringify({
+      prompt,
+      constitution,
+      mode,
+      iterations,
+      helpfulness_weight: helpfulnessWeight,
+      harmlessness_weight: harmlessnessWeight,
+    }),
   })
   if (!res.ok || !res.body) throw new Error('Stream failed')
 

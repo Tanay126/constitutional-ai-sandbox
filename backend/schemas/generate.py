@@ -17,6 +17,8 @@ class GenerateRequest(BaseModel):
     constitution: list[str] = Field(default_factory=list)
     mode: Mode = Mode.with_constitution
     iterations: int = Field(default=3, ge=1, le=10)
+    helpfulness_weight: float = Field(default=5.0, ge=0.0, le=10.0)
+    harmlessness_weight: float = Field(default=5.0, ge=0.0, le=10.0)
 
 
 class ConstitutionPreset(BaseModel):

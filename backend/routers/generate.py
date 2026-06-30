@@ -28,21 +28,23 @@ def _sse(event: SSEEvent) -> str:
 
 
 async def _stream(request: GenerateRequest):
+    hw = request.helpfulness_weight
+    harm = request.harmlessness_weight
     try:
         if MOCK_MODE:
             if request.mode == Mode.without:
                 gen = mock_run_without_constitution(request.prompt)
             elif request.mode == Mode.with_constitution:
-                gen = mock_run_with_constitution(request.prompt, request.constitution, request.iterations)
-            else:  # side_by_side
-                gen = mock_run_side_by_side(request.prompt, request.constitution, request.iterations)
+                gen = mock_run_with_constitution(request.prompt, request.constitution, request.iterations, hw, harm)
+            else:
+                gen = mock_run_side_by_side(request.prompt, request.constitution, request.iterations, hw, harm)
         else:
             if request.mode == Mode.without:
                 gen = run_without_constitution(request.prompt)
             elif request.mode == Mode.with_constitution:
-                gen = run_with_constitution(request.prompt, request.constitution, request.iterations)
-            else:  # side_by_side
-                gen = run_side_by_side(request.prompt, request.constitution, request.iterations)
+                gen = run_with_constitution(request.prompt, request.constitution, request.iterations, hw, harm)
+            else:
+                gen = run_side_by_side(request.prompt, request.constitution, request.iterations, hw, harm)
 
         async for event in gen:
             yield _sse(event)

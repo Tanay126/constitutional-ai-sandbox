@@ -13,19 +13,20 @@ export function TraceView({ events, isStreaming, stats, label }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [events.length])
 
   const displayEvents = events.filter(e => e.step !== 'done')
+  const activeIndex = isStreaming ? displayEvents.length - 1 : -1
 
-  // Track the most recent content per column to feed into DiffView
-  const prevContentByPrinciple: Record<string, string> = {}
+  // Track previous content per revision key for diff rendering
   let lastDraftContent = ''
+  const prevContentByKey: Record<string, string> = {}
 
   return (
     <div className="flex flex-col gap-3 p-4 h-full overflow-y-auto">
       {label && (
-        <div className="text-[10px] tracking-[0.15em] uppercase text-neutral-600 pb-1 border-b border-white/5">
+        <div className="text-[10px] tracking-[0.15em] uppercase text-neutral-600 pb-1 border-b border-white/5 shrink-0">
           {label}
         </div>
       )}
@@ -48,27 +49,32 @@ export function TraceView({ events, isStreaming, stats, label }: Props) {
 
         if (event.step === 'revision') {
           const key = `${event.iteration}-${event.principle_index}`
-          previousContent = prevContentByPrinciple[key] ?? lastDraftContent
-          prevContentByPrinciple[key] = event.content
+          previousContent = prevContentByKey[key] ?? lastDraftContent
+          prevContentByKey[key] = event.content
           lastDraftContent = event.content
         } else if (event.step === 'draft') {
           lastDraftContent = event.content
         }
 
         return (
-          <TraceCard key={i} event={event} previousContent={previousContent} />
+          <TraceCard
+            key={i}
+            event={event}
+            previousContent={previousContent}
+            isActive={i === activeIndex}
+          />
         )
       })}
 
       {isStreaming && displayEvents.length > 0 && (
-        <div className="flex items-center gap-2 text-neutral-600 text-xs">
+        <div className="flex items-center gap-2 text-neutral-600 text-xs shrink-0">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
           Streaming…
         </div>
       )}
 
       {stats && !isStreaming && (
-        <div className="card-appear border border-white/10 rounded-sm p-3 bg-white/[0.02] text-[11px] text-neutral-500 flex gap-4 flex-wrap">
+        <div className="card-appear border border-white/10 rounded-sm p-3 bg-white/[0.02] text-[11px] text-neutral-500 flex gap-4 flex-wrap shrink-0">
           <span>{stats.critiques} critique{stats.critiques !== 1 ? 's' : ''} applied</span>
           <span>{stats.revisions} revision{stats.revisions !== 1 ? 's' : ''}</span>
           <span>~{stats.wordsChanged} words changed</span>
