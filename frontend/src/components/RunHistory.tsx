@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, Clock, Trash2 } from 'lucide-react'
 import type { HistoryEntry } from '../types'
+import { truncatePrompt } from '../lib/history'
 import { cn } from '../lib/cn'
 
 interface Props {
@@ -66,8 +67,8 @@ export function RunHistory({ open, onToggle, history, onReplay, onClear }: Props
                       </span>
                       <span className="text-[9px] text-neutral-700 shrink-0">{relativeTime(entry.timestamp)}</span>
                     </div>
-                    <p className="text-[11px] text-neutral-500 truncate mt-1 group-hover:text-neutral-300 transition-colors">
-                      {entry.prompt}
+                    <p className="text-[11px] text-neutral-500 mt-1 group-hover:text-neutral-300 transition-colors font-mono">
+                      {truncatePrompt(entry.prompt)}
                     </p>
                     <p className="text-[10px] text-neutral-700 mt-0.5">
                       {entry.iterations} iter · {entry.constitution.length} principle{entry.constitution.length !== 1 ? 's' : ''}

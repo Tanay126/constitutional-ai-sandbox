@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: cai-sandbox-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: MOCK_MODE
+        value: "true"
+      - key: ANTHROPIC_API_KEY
+        sync: false          # set manually in Render dashboard
+      - key: CORS_ORIGINS
+        sync: false          # set to your Vercel URL after deploying frontend
+    healthCheckPath: /health

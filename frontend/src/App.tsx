@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Play, Square, Keyboard } from 'lucide-react'
+import { Play, Square, AlertCircle, RefreshCw } from 'lucide-react'
 import type { SSEEvent, ConstitutionPreset, Conflict, Mode, RunStats, HistoryEntry } from './types'
-import { fetchPresets, streamGenerate, detectConflicts } from './lib/api'
+import { fetchConfig, fetchPresets, streamGenerate, detectConflicts, BackendOfflineError } from './lib/api'
 import { ConstitutionEditor } from './components/ConstitutionEditor'
 import { TraceView } from './components/TraceView'
 import { RunStatsPanel } from './components/RunStatsPanel'
 import { ConflictBanners } from './components/ConflictBanners'
 import { RunHistory } from './components/RunHistory'
+import { Navbar } from './components/Navbar'
+import { CaiInfoPanel } from './components/CaiInfoPanel'
 import { cn } from './lib/cn'
 import { wordDiff } from './lib/diff'
 import { generateExportHTML, downloadHTML } from './lib/export'
@@ -47,6 +49,8 @@ export default function App() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [isMockMode, setIsMockMode] = useState(false)
+  const [backendOffline, setBackendOffline] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory())
 
   const [events, setEvents] = useState<SSEEvent[]>([])
@@ -55,9 +59,17 @@ export default function App() {
   const [conflicts, setConflicts] = useState<Conflict[]>([])
   const abortRef = useRef<AbortController | null>(null)
 
-  useEffect(() => {
-    fetchPresets().then(setPresets).catch(console.error)
+  const bootstrap = useCallback(() => {
+    setBackendOffline(false)
+    fetchConfig()
+      .then(cfg => setIsMockMode(cfg.mock_mode))
+      .catch(() => setBackendOffline(true))
+    fetchPresets()
+      .then(setPresets)
+      .catch(err => { if (err instanceof BackendOfflineError) setBackendOffline(true) })
   }, [])
+
+  useEffect(() => { bootstrap() }, [bootstrap])
 
   const run = useCallback(async () => {
     if (isStreaming) {
@@ -71,6 +83,7 @@ export default function App() {
     setEventsB([])
     setStats(null)
     setConflicts([])
+    setBackendOffline(false)
 
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -84,47 +97,39 @@ export default function App() {
           (async () => {
             for await (const ev of streamGenerate(prompt, principles, 'with_constitution', iterations, helpfulnessWeight, harmlessnessWeight)) {
               if (ctrl.signal.aborted) break
-              collected.push(ev)
-              setEvents([...collected])
+              collected.push(ev); setEvents([...collected])
             }
           })(),
           (async () => {
             for await (const ev of streamGenerate(prompt, [], 'without', 1, helpfulnessWeight, harmlessnessWeight)) {
               if (ctrl.signal.aborted) break
-              collectedB.push(ev)
-              setEventsB([...collectedB])
+              collectedB.push(ev); setEventsB([...collectedB])
             }
           })(),
         ])
 
         if (!ctrl.signal.aborted) {
-          const s = buildStats(collected)
-          setStats(s)
-          const c = await detectConflicts(principles)
-          setConflicts(c)
+          const s = buildStats(collected); setStats(s)
+          const c = await detectConflicts(principles); setConflicts(c)
           persistRun(collected, s, c)
         }
       } else {
         const collected: SSEEvent[] = []
         for await (const ev of streamGenerate(prompt, principles, mode, iterations, helpfulnessWeight, harmlessnessWeight)) {
           if (ctrl.signal.aborted) break
-          collected.push(ev)
-          setEvents([...collected])
+          collected.push(ev); setEvents([...collected])
         }
         if (!ctrl.signal.aborted) {
-          const s = buildStats(collected)
-          setStats(s)
+          const s = buildStats(collected); setStats(s)
           let c: Conflict[] = []
-          if (mode === 'with_constitution') {
-            c = await detectConflicts(principles)
-            setConflicts(c)
-          }
+          if (mode === 'with_constitution') { c = await detectConflicts(principles); setConflicts(c) }
           persistRun(collected, s, c)
         }
       }
     } catch (err: unknown) {
-      if ((err as Error)?.name !== 'AbortError') {
-        console.error('Stream error:', err)
+      if (err instanceof BackendOfflineError) {
+        setBackendOffline(true)
+      } else if ((err as Error)?.name !== 'AbortError') {
         setEvents(prev => [...prev, {
           step: 'error', content: String(err),
           iteration: null, principle_index: null, principle: null, mode: null,
@@ -139,37 +144,23 @@ export default function App() {
     const entry: HistoryEntry = {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
-      prompt,
-      mode,
-      iterations,
+      prompt, mode, iterations,
       constitution: [...principles],
-      helpfulnessWeight,
-      harmlessnessWeight,
-      events: evts,
-      stats: s,
-      conflicts: c,
+      helpfulnessWeight, harmlessnessWeight,
+      events: evts, stats: s, conflicts: c,
     }
     saveRun(entry)
     setHistory(loadHistory())
   }
 
   function replayEntry(entry: HistoryEntry) {
-    setEvents(entry.events)
-    setEventsB([])
-    setStats(entry.stats)
-    setConflicts(entry.conflicts)
-    setPrompt(entry.prompt)
-    setPrinciples(entry.constitution)
-    setMode(entry.mode)
-    setIterations(entry.iterations)
+    setEvents(entry.events); setEventsB([])
+    setStats(entry.stats); setConflicts(entry.conflicts)
+    setPrompt(entry.prompt); setPrinciples(entry.constitution)
+    setMode(entry.mode); setIterations(entry.iterations)
     setHelpfulnessWeight(entry.helpfulnessWeight)
     setHarmlessnessWeight(entry.harmlessnessWeight)
     setShowHistory(false)
-  }
-
-  function doClearHistory() {
-    clearHistory()
-    setHistory([])
   }
 
   function handleExport() {
@@ -182,18 +173,12 @@ export default function App() {
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       const meta = e.metaKey || e.ctrlKey
-      if (meta && e.key === 'Enter') {
+      if (meta && e.key === 'Enter') { e.preventDefault(); run() }
+      else if (meta && e.key === 'k') {
         e.preventDefault()
-        run()
-      } else if (meta && e.key === 'k') {
-        e.preventDefault()
-        setEvents([])
-        setEventsB([])
-        setStats(null)
-        setConflicts([])
+        setEvents([]); setEventsB([]); setStats(null); setConflicts([])
       } else if (meta && e.key === 'h') {
-        e.preventDefault()
-        setShowHistory(v => !v)
+        e.preventDefault(); setShowHistory(v => !v)
       }
     }
     window.addEventListener('keydown', handler)
@@ -202,112 +187,128 @@ export default function App() {
 
   const isSideBySide = mode === 'side_by_side'
   const canExport = events.length > 0 && !isStreaming
+  const hasNoEvents = events.length === 0
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0a0a0a] text-neutral-300 font-mono">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#0a0a0a] text-neutral-300">
+      <Navbar isMockMode={isMockMode} />
 
-      {/* ── LEFT PANEL ── */}
-      <div className="w-[280px] shrink-0 border-r border-white/[0.06] overflow-hidden flex flex-col">
-        <div className="flex-1 overflow-hidden">
-          <ConstitutionEditor
-            principles={principles}
-            onChange={p => { setPrinciples(p); setSelectedPresetId(null) }}
-            presets={presets}
-            selectedPresetId={selectedPresetId}
-            onPresetSelect={setSelectedPresetId}
-            mode={mode}
-            onModeChange={setMode}
-            iterations={iterations}
-            onIterationsChange={setIterations}
-            helpfulnessWeight={helpfulnessWeight}
-            harmlessnessWeight={harmlessnessWeight}
-            onHelpfulnessChange={setHelpfulnessWeight}
-            onHarmlessnessChange={setHarmlessnessWeight}
-            disabled={isStreaming}
-          />
+      {/* Backend offline banner */}
+      {backendOffline && (
+        <div className="shrink-0 bg-red-950/40 border-b border-red-500/30 px-4 py-2 flex items-center gap-3 text-xs text-red-400 font-sans">
+          <AlertCircle size={13} className="shrink-0" />
+          <span>Backend offline — make sure the FastAPI server is running on :8000</span>
+          <button
+            onClick={bootstrap}
+            className="ml-auto flex items-center gap-1.5 text-red-500 hover:text-red-300 transition-colors"
+          >
+            <RefreshCw size={11} /> Retry
+          </button>
         </div>
-        <RunHistory
-          open={showHistory}
-          onToggle={() => setShowHistory(v => !v)}
-          history={history}
-          onReplay={replayEntry}
-          onClear={doClearHistory}
-        />
-      </div>
+      )}
 
-      {/* ── CENTER PANEL ── */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Prompt + Run bar */}
-        <div className="border-b border-white/[0.06] p-4 space-y-2 shrink-0">
-          <div className="flex items-start gap-3">
-            <textarea
-              value={prompt}
-              onChange={e => setPrompt(e.target.value)}
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {/* ── LEFT PANEL ── */}
+        <div className="w-[280px] shrink-0 border-r border-white/[0.06] overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-hidden">
+            <ConstitutionEditor
+              principles={principles}
+              onChange={p => { setPrinciples(p); setSelectedPresetId(null) }}
+              presets={presets}
+              selectedPresetId={selectedPresetId}
+              onPresetSelect={setSelectedPresetId}
+              mode={mode}
+              onModeChange={setMode}
+              iterations={iterations}
+              onIterationsChange={setIterations}
+              helpfulnessWeight={helpfulnessWeight}
+              harmlessnessWeight={harmlessnessWeight}
+              onHelpfulnessChange={setHelpfulnessWeight}
+              onHarmlessnessChange={setHarmlessnessWeight}
               disabled={isStreaming}
-              rows={3}
-              placeholder="Enter a prompt… (Cmd+Enter to run)"
-              className={cn(
-                'flex-1 text-sm bg-white/[0.04] border border-white/10 rounded-sm px-3 py-2',
-                'text-neutral-200 placeholder:text-neutral-700 resize-none leading-relaxed',
-                'focus:outline-none focus:border-white/20',
-                'disabled:opacity-60 disabled:cursor-not-allowed'
-              )}
             />
-            <div className="flex flex-col gap-1.5 shrink-0">
-              <div className="relative">
+          </div>
+          <RunHistory
+            open={showHistory}
+            onToggle={() => setShowHistory(v => !v)}
+            history={history}
+            onReplay={replayEntry}
+            onClear={() => { clearHistory(); setHistory([]) }}
+          />
+          <CaiInfoPanel />
+        </div>
+
+        {/* ── CENTER PANEL ── */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          {/* Prompt + Run bar */}
+          <div className="border-b border-white/[0.06] p-4 space-y-2 shrink-0">
+            <div className="flex items-start gap-3">
+              <textarea
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                disabled={isStreaming}
+                rows={3}
+                placeholder="Enter a prompt… (⌘ Enter to run)"
+                className={cn(
+                  'flex-1 text-sm font-mono bg-white/[0.04] border border-white/10 rounded-sm px-3 py-2',
+                  'text-neutral-200 placeholder:text-neutral-700 resize-none leading-relaxed',
+                  'focus:outline-none focus:border-white/20',
+                  'disabled:opacity-60 disabled:cursor-not-allowed'
+                )}
+              />
+              <div className="relative shrink-0">
                 <button
                   onClick={run}
                   onMouseEnter={() => setShowShortcuts(true)}
                   onMouseLeave={() => setShowShortcuts(false)}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-sm text-sm font-medium transition-colors',
+                    'flex items-center gap-2 px-4 py-2 rounded-sm text-sm font-medium font-sans transition-colors',
                     isStreaming
                       ? 'bg-red-950/50 border border-red-500/30 text-red-400 hover:bg-red-950/70'
                       : 'bg-teal-950/50 border border-teal-500/40 text-teal-300 hover:bg-teal-950/70'
                   )}
                 >
-                  {isStreaming ? <><Square size={14} /> Stop</> : <><Play size={14} /> Run</>}
+                  {isStreaming ? <><Square size={14} />Stop</> : <><Play size={14} />Run</>}
                 </button>
                 {showShortcuts && !isStreaming && (
-                  <div className="absolute top-full right-0 mt-1.5 z-10 bg-[#161616] border border-white/10 rounded-sm px-3 py-2 text-[10px] text-neutral-500 whitespace-nowrap space-y-1 shadow-xl">
-                    <div className="flex items-center gap-2"><Keyboard size={9} /><span>Shortcuts</span></div>
-                    <div className="flex justify-between gap-4 pt-1"><span>Run</span><kbd className="text-neutral-600">⌘ Enter</kbd></div>
-                    <div className="flex justify-between gap-4"><span>Clear trace</span><kbd className="text-neutral-600">⌘ K</kbd></div>
-                    <div className="flex justify-between gap-4"><span>History</span><kbd className="text-neutral-600">⌘ H</kbd></div>
+                  <div className="absolute top-full right-0 mt-1.5 z-10 bg-[#161616] border border-white/10 rounded-sm px-3 py-2 text-[10px] text-neutral-500 whitespace-nowrap space-y-1 shadow-xl font-sans">
+                    <div className="flex justify-between gap-5"><span>Run</span><kbd className="font-mono text-neutral-600">⌘ Enter</kbd></div>
+                    <div className="flex justify-between gap-5"><span>Clear</span><kbd className="font-mono text-neutral-600">⌘ K</kbd></div>
+                    <div className="flex justify-between gap-5"><span>History</span><kbd className="font-mono text-neutral-600">⌘ H</kbd></div>
                   </div>
                 )}
               </div>
             </div>
+            {conflicts.length > 0 && <ConflictBanners conflicts={conflicts} />}
           </div>
-          {conflicts.length > 0 && <ConflictBanners conflicts={conflicts} />}
+
+          {/* Trace area */}
+          {isSideBySide ? (
+            <div className="flex-1 flex overflow-hidden min-h-0">
+              <div className="flex-1 overflow-hidden border-r border-white/[0.06]">
+                <TraceView events={events} isStreaming={isStreaming} stats={stats} label="With constitution" />
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <TraceView events={eventsB} isStreaming={isStreaming} stats={null} label="Without constitution" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-hidden min-h-0">
+              <TraceView events={events} isStreaming={isStreaming} stats={stats} showHero={hasNoEvents} />
+            </div>
+          )}
         </div>
 
-        {/* Trace area */}
-        {isSideBySide ? (
-          <div className="flex-1 flex overflow-hidden min-h-0">
-            <div className="flex-1 overflow-hidden border-r border-white/[0.06]">
-              <TraceView events={events} isStreaming={isStreaming} stats={stats} label="With constitution" />
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <TraceView events={eventsB} isStreaming={isStreaming} stats={null} label="Without constitution" />
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-hidden min-h-0">
-            <TraceView events={events} isStreaming={isStreaming} stats={stats} />
-          </div>
-        )}
-      </div>
-
-      {/* ── RIGHT PANEL ── */}
-      <div className="w-[260px] shrink-0 border-l border-white/[0.06] overflow-hidden flex flex-col">
-        <RunStatsPanel
-          stats={stats}
-          conflicts={conflicts}
-          isStreaming={isStreaming}
-          canExport={canExport}
-          onExport={handleExport}
-        />
+        {/* ── RIGHT PANEL ── */}
+        <div className="w-[260px] shrink-0 border-l border-white/[0.06] overflow-hidden flex flex-col">
+          <RunStatsPanel
+            stats={stats}
+            conflicts={conflicts}
+            isStreaming={isStreaming}
+            canExport={canExport}
+            onExport={handleExport}
+          />
+        </div>
       </div>
     </div>
   )

@@ -3,9 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  * {
-    box-sizing: border-box;
-  }
+  * { box-sizing: border-box; }
 
   html, body, #root {
     height: 100%;
@@ -14,73 +12,102 @@
   }
 
   body {
-    background: #0a0a0a;
+    background-color: #0a0a0a;
+    /* Subtle 32px grid — gives depth without noise */
+    background-image:
+      linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+    background-size: 32px 32px;
     color: #e5e5e5;
-    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+    font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  /* Monospace for all trace / code content */
+  .font-mono, pre, code, textarea {
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace !important;
   }
-  ::-webkit-scrollbar-track {
-    background: #0a0a0a;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #2a2a2a;
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #3a3a3a;
-  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #333; }
 }
 
 @layer components {
+  /* ── Card animations ───────────────────────────────── */
   .card-appear {
     animation: cardAppear 0.22s ease-out both;
   }
 
   @keyframes cardAppear {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
-  .diff-del {
-    color: #ef4444;
-    text-decoration: line-through;
-    background: rgba(239, 68, 68, 0.1);
-    border-radius: 2px;
-    padding: 0 2px;
-  }
-
-  .diff-ins {
-    color: #2dd4bf;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    background: rgba(45, 212, 191, 0.1);
-    border-radius: 2px;
-    padding: 0 2px;
-  }
-
-  /* Animated glow on the card currently being streamed */
   .card-active {
     animation: cardAppear 0.22s ease-out both, streamPulse 1.8s ease-in-out infinite;
   }
 
   @keyframes streamPulse {
-    0%, 100% {
-      box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.25), 0 0 8px rgba(45, 212, 191, 0.07);
-    }
-    50% {
-      box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.6), 0 0 18px rgba(45, 212, 191, 0.18);
-    }
+    0%,100% { box-shadow: 0 0 0 1px rgba(45,212,191,0.22), 0 0 8px rgba(45,212,191,0.06); }
+    50%     { box-shadow: 0 0 0 1px rgba(45,212,191,0.55), 0 0 18px rgba(45,212,191,0.16); }
+  }
+
+  /* ── Diff highlights ───────────────────────────────── */
+  .diff-del {
+    color: #ef4444;
+    text-decoration: line-through;
+    background: rgba(239,68,68,0.1);
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+  .diff-ins {
+    color: #2dd4bf;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    background: rgba(45,212,191,0.1);
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+
+  /* ── Navbar pulse dot ──────────────────────────────── */
+  .pulse-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #2dd4bf;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%,100% { opacity: 0.35; transform: scale(0.9); }
+    50%     { opacity: 1;    transform: scale(1.15); }
+  }
+
+  /* ── Hero loop diagram ─────────────────────────────── */
+  .loop-node { transition: opacity 0.2s; }
+  .loop-n0 { animation: loopPulse 3.2s ease-in-out infinite 0s; }
+  .loop-n1 { animation: loopPulse 3.2s ease-in-out infinite 0.8s; }
+  .loop-n2 { animation: loopPulse 3.2s ease-in-out infinite 1.6s; }
+  .loop-n3 { animation: loopPulse 3.2s ease-in-out infinite 2.4s; }
+
+  @keyframes loopPulse {
+    0%,100% { opacity: 0.18; }
+    15%,45% { opacity: 1; }
+  }
+
+  .loop-arrow {
+    animation: arrowFade 3.2s ease-in-out infinite;
+  }
+  .loop-a0 { animation-delay: 0.4s; }
+  .loop-a1 { animation-delay: 1.2s; }
+  .loop-a2 { animation-delay: 2.0s; }
+
+  @keyframes arrowFade {
+    0%,100% { opacity: 0.08; }
+    15%,45% { opacity: 0.5; }
   }
 }
