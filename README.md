@@ -1,19 +1,29 @@
 # Constitutional AI Sandbox
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?logo=vercel)](https://frontend-tanay126s-projects.vercel.app)
+[![GitHub](https://img.shields.io/badge/GitHub-Tanay126%2Fconstitutional--ai--sandbox-181717?logo=github)](https://github.com/tanay126/constitutional-ai-sandbox)
 [![License: MIT](https://img.shields.io/badge/License-MIT-neutral)](LICENSE)
 
 An interactive visualiser for Anthropic's Constitutional AI (CAI) critique-revision loop. Runs a real (or mocked) Claude model through a live trace you can watch word-by-word, with diff highlighting, severity sliders, and side-by-side comparison.
 
-**Live demo →** https://frontend-tanay126s-projects.vercel.app
+**Live demo →** https://frontend-tanay126s-projects.vercel.app  
+**GitHub →** https://github.com/tanay126/constitutional-ai-sandbox
 
 ---
 
 ## Screenshots
 
-| Empty state | After a run |
+| Empty state | Mid-stream |
 |---|---|
-| ![Empty state](docs/screenshots/empty-state.png) | ![After run](docs/screenshots/after-run.png) |
+| ![Empty state](docs/screenshots/screenshot-empty-state.png) | ![Streaming](docs/screenshots/screenshot-streaming.png) |
+
+| Full trace (with conflicts) | Side-by-side mode |
+|---|---|
+| ![Full trace](docs/screenshots/screenshot-full-trace.png) | ![Side by side](docs/screenshots/screenshot-side-by-side.png) |
+
+| Exported HTML trace |
+|---|
+| ![Export](docs/screenshots/screenshot-export.png) |
 
 ---
 
@@ -91,29 +101,38 @@ constitutional-ai-sandbox/
 
 ## Running locally
 
+**Requirements:** Python 3.11+, Node.js 18+
+
 ### Backend
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
+cp .env.example .env          # then set ANTHROPIC_API_KEY if using real mode
+
+# Option A — uv (recommended, faster)
+pip install uv
+uv sync
+source .venv/bin/activate
+
+# Option B — plain pip
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Mock mode (no API key needed)
+# Start (mock mode — no API key needed)
 MOCK_MODE=true uvicorn main:app --reload --port 8000
 
-# Real mode
-ANTHROPIC_API_KEY=sk-ant-... uvicorn main:app --reload --port 8000
+# Start (real mode)
+uvicorn main:app --reload --port 8000   # reads ANTHROPIC_API_KEY from .env
 ```
 
 ### Frontend
 
 ```bash
 cd frontend
+cp .env.example .env 2>/dev/null || echo 'VITE_API_URL=http://localhost:8000' > .env
 npm install
 npm run dev        # → http://localhost:5173
 ```
-
-Set `VITE_API_URL=http://localhost:8000` in `frontend/.env` (already there).
 
 ---
 

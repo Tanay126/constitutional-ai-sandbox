@@ -37,7 +37,7 @@ export function Navbar({ isMockMode }: Props) {
 
         {/* GitHub link */}
         <a
-          href="https://github.com/Tanay126/constitutional-ai-sandbox"
+          href="https://github.com/tanay126/constitutional-ai-sandbox"
           target="_blank"
           rel="noopener noreferrer"
           className="text-neutral-600 hover:text-neutral-300 transition-colors"
